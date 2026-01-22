@@ -121,7 +121,7 @@ def main() -> None:
     
     # 获取配置
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "18082"))  # 默认端口
+    port = int(os.getenv("PORT", "19003"))  # 默认端口
     
     # 检查端口冲突
     if is_port_in_use(port, host):

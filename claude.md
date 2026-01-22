@@ -62,15 +62,17 @@ uv run docker-mcp-gateway
 ### 远程部署（从本地部署到服务器）
 
 ```bash
-# 1. 配置服务器信息
+# 1. 配置（首次）
 cp .env.remote.example .env.remote
-# 编辑 .env.remote，设置 REMOTE_HOST 等
+# 编辑 .env.remote
 
-# 2. 执行远程部署
-./remote_deploy.sh deploy    # 完整部署
-./remote_deploy.sh status    # 远程状态
-./remote_deploy.sh logs      # 远程日志
-./remote_deploy.sh ssh       # 登录服务器
+# 2. 一键部署
+./deploy_remote.sh           # 直接运行即可
+
+# 其他命令
+./deploy_remote.sh status    # 远程状态
+./deploy_remote.sh logs      # 远程日志
+./deploy_remote.sh ssh       # 登录服务器
 ```
 
 ## 配置
@@ -117,7 +119,7 @@ docker_mcp_gateway/
 ├── logs/                    # 日志目录（自动创建）
 ├── backups/                 # 配置备份（自动创建）
 ├── deploy.sh                # 本地部署脚本
-├── remote_deploy.sh         # 远程部署脚本
+├── deploy_remote.sh         # 远程部署脚本（一键部署）
 ├── .env.example             # 本地环境变量示例
 └── .env.remote.example      # 远程部署配置示例
 ```

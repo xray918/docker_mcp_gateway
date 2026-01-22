@@ -22,9 +22,10 @@ NC='\033[0m' # No Color
 
 # 远程服务器配置
 REMOTE_USER="root"                              # SSH 用户名
-REMOTE_HOST="8.217.130.241"                    # 服务器 IP 或域名
+REMOTE_HOST="8.217.130.241"                     # 服务器 IP 或域名
 REMOTE_PORT="22"                                # SSH 端口
-REMOTE_PATH="/opt/docker-mcp-gateway"           # 远程项目路径
+REMOTE_PATH="/root/docker_mcp_gateway"          # 远程项目路径
+REMOTE_PASSWORD=""                              # SSH 密码（留空则使用密钥）
 
 # 本地配置
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -64,12 +65,20 @@ log_step() {
 
 # SSH 命令封装
 ssh_cmd() {
-    ssh -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
+    if [[ -n "${REMOTE_PASSWORD}" ]]; then
+        sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
+    else
+        ssh -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
+    fi
 }
 
 # SCP 命令封装
 scp_cmd() {
-    scp -P "${REMOTE_PORT}" "$@"
+    if [[ -n "${REMOTE_PASSWORD}" ]]; then
+        sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no -P "${REMOTE_PORT}" "$@"
+    else
+        scp -P "${REMOTE_PORT}" "$@"
+    fi
 }
 
 ###############################################################################
@@ -105,11 +114,21 @@ check_config() {
 check_ssh() {
     log_step "检查 SSH 连接..."
     
+    # 检查是否需要 sshpass
+    if [[ -n "${REMOTE_PASSWORD}" ]] && ! command -v sshpass &> /dev/null; then
+        log_error "使用密码认证需要安装 sshpass"
+        log_info "安装方法："
+        echo "  macOS: brew install sshpass"
+        echo "  Ubuntu/Debian: apt-get install sshpass"
+        echo "  CentOS/RHEL: yum install sshpass"
+        exit 1
+    fi
+    
     if ! ssh_cmd "echo 'SSH 连接成功'" 2>/dev/null; then
         log_error "无法连接到服务器 ${REMOTE_USER}@${REMOTE_HOST}"
         log_info "请检查："
         echo "  1. 服务器地址是否正确"
-        echo "  2. SSH 密钥是否已配置"
+        echo "  2. SSH 密码/密钥是否正确"
         echo "  3. 防火墙是否允许 SSH 连接"
         exit 1
     fi
@@ -239,24 +258,14 @@ sync_code() {
 sync_config() {
     log_step "同步配置文件..."
     
-    # 如果本地有 .env 文件，询问是否同步
+    # 非交互模式，自动跳过配置同步（服务器上已有配置）
+    log_info "跳过配置文件同步（保留服务器现有配置）"
+    log_info "如需同步配置，请手动执行："
     if [[ -f "${LOCAL_DIR}/.env" ]]; then
-        read -p "是否同步本地 .env 文件到服务器? (y/N): " sync_env
-        if [[ "${sync_env}" =~ ^[Yy]$ ]]; then
-            scp_cmd "${LOCAL_DIR}/.env" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/.env"
-            log_info "✓ .env 文件已同步"
-        fi
+        echo "  scp .env ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/.env"
     fi
-    
-    # 同步容器配置
     if [[ -f "${LOCAL_DIR}/config/containers.yaml" ]]; then
-        read -p "是否同步本地容器配置? (y/N): " sync_config
-        if [[ "${sync_config}" =~ ^[Yy]$ ]]; then
-            ssh_cmd "mkdir -p ${REMOTE_PATH}/config"
-            scp_cmd "${LOCAL_DIR}/config/containers.yaml" \
-                "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/config/containers.yaml"
-            log_info "✓ 容器配置已同步"
-        fi
+        echo "  scp config/containers.yaml ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/config/"
     fi
 }
 
@@ -325,7 +334,11 @@ REMOTE_SCRIPT
 
 follow_remote_logs() {
     log_step "实时跟踪远程日志 (Ctrl+C 退出)..."
-    ssh_cmd "cd ${REMOTE_PATH} && tail -f logs/docker-mcp-gateway.log"
+    if [[ -n "${REMOTE_PASSWORD}" ]]; then
+        sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && tail -f logs/docker-mcp-gateway.log"
+    else
+        ssh -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && tail -f logs/docker-mcp-gateway.log"
+    fi
 }
 
 ###############################################################################
@@ -348,10 +361,10 @@ REMOTE_SCRIPT
 
 usage() {
     cat << EOF
-用法: $0 <command>
+用法: $0 [command]
 
 命令:
-  deploy          完整部署流程（初始化 + 同步代码 + 部署）
+  deploy          完整部署流程（初始化 + 同步代码 + 部署）【默认】
   sync            仅同步代码到服务器
   restart         重启远程服务
   stop            停止远程服务
@@ -360,11 +373,13 @@ usage() {
   logs-follow     实时跟踪远程日志
   ssh             SSH 登录到服务器
   init            初始化远程环境
+  help            显示帮助信息
 
 配置:
-  请编辑脚本顶部的配置区域，或创建 .env.remote 文件
+  配置文件: .env.remote（从 .env.remote.example 复制）
 
 示例:
+  $0                  # 直接运行，执行完整部署
   $0 deploy           # 完整部署
   $0 status           # 查看状态
   $0 logs 200         # 查看最近 200 行日志
@@ -374,7 +389,7 @@ EOF
 }
 
 main() {
-    local command=${1:-}
+    local command=${1:-deploy}  # 默认执行 deploy
     
     case "${command}" in
         deploy)
@@ -419,14 +434,24 @@ main() {
         ssh)
             check_config
             log_info "连接到 ${REMOTE_USER}@${REMOTE_HOST}..."
-            ssh -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}"
+            if [[ -n "${REMOTE_PASSWORD}" ]]; then
+                sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}"
+            else
+                ssh -p "${REMOTE_PORT}" "${REMOTE_USER}@${REMOTE_HOST}"
+            fi
             ;;
         init)
             check_config
             check_ssh
             init_remote
             ;;
+        help|--help|-h)
+            usage
+            exit 0
+            ;;
         *)
+            log_error "未知命令: ${command}"
+            echo ""
             usage
             exit 1
             ;;

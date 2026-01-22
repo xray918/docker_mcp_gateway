@@ -71,15 +71,18 @@ cp .env.example .env
 ### 远程部署（从本地部署到服务器）
 
 ```bash
-# 1. 配置服务器信息
+# 1. 配置服务器信息（首次使用）
 cp .env.remote.example .env.remote
-# 编辑 .env.remote，设置服务器地址
+# 编辑 .env.remote，设置 REMOTE_HOST、REMOTE_PASSWORD 等
 
-# 2. 执行远程部署
-./remote_deploy.sh deploy    # 完整部署流程
-./remote_deploy.sh status    # 查看远程状态
-./remote_deploy.sh logs      # 查看远程日志
-./remote_deploy.sh ssh       # SSH 登录服务器
+# 2. 一键部署（直接运行）
+./deploy_remote.sh           # 完整部署流程
+
+# 其他命令
+./deploy_remote.sh status    # 查看远程状态
+./deploy_remote.sh logs      # 查看远程日志
+./deploy_remote.sh ssh       # SSH 登录服务器
+./deploy_remote.sh restart   # 重启远程服务
 ```
 
 ### 访问
