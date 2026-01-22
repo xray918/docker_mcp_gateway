@@ -20,7 +20,7 @@ cd /Users/xiexinfa/demo/taoke_docker
 uv sync
 ```
 
-### 启动
+### 启动（开发模式）
 
 ```bash
 uv run docker-mcp-gateway
@@ -30,6 +30,56 @@ uv run docker-mcp-gateway
 
 ```bash
 PORT=18082 uv run docker-mcp-gateway
+```
+
+### 服务器部署
+
+使用部署脚本进行生产环境部署：
+
+```bash
+# 复制配置文件
+cp .env.example .env
+# 根据需要编辑 .env
+
+# 启动服务（后台运行）
+./deploy.sh start
+
+# 查看服务状态
+./deploy.sh status
+
+# 更新代码并重启
+./deploy.sh deploy
+
+# 查看日志
+./deploy.sh logs
+./deploy.sh logs-follow  # 实时跟踪
+```
+
+部署脚本支持的命令：
+- `start` - 启动服务
+- `stop` - 停止服务
+- `restart` - 重启服务
+- `status` - 查看状态
+- `update` - 更新代码
+- `deploy` - 更新代码并重启
+- `logs` - 查看日志
+- `logs-follow` - 实时日志
+- `health` - 健康检查
+- `clean` - 清理临时文件
+- `install` - 安装为 systemd 服务（Linux）
+
+### 远程部署（从本地部署到服务器）
+
+```bash
+# 1. 配置服务器信息
+cp .env.remote.example .env.remote
+# 编辑 .env.remote，设置服务器地址
+
+# 2. 执行远程部署
+./remote_deploy.sh deploy    # 完整部署流程
+./remote_deploy.sh status    # 查看远程状态
+./remote_deploy.sh logs      # 查看远程日志
+./remote_deploy.sh ssh       # SSH 登录服务器
 ```
 
 ### 访问

@@ -575,25 +575,35 @@ class DockerManager:
         Returns:
             bool: 是否成功
         """
-        logger.info("正在删除容器: %s", name)
+        logger.info("正在删除容器: %s (force=%s)", name, force)
         
         try:
+            # 1. 尝试删除 Docker 容器
             container = await self._get_container(name)
             if container:
+                logger.info("找到 Docker 容器: %s (ID: %s, 状态: %s)", 
+                           name, container.short_id, container.status)
                 await asyncio.to_thread(container.remove, force=force)
-                logger.info("容器已删除: %s", name)
+                logger.info("Docker 容器已删除: %s", name)
+            else:
+                logger.warning("Docker 中未找到容器: %s，将仅删除配置", name)
             
-            # 删除配置
-            self.config.remove_container(name)
+            # 2. 删除配置
+            config_removed = self.config.remove_container(name)
+            logger.info("配置删除结果: %s -> %s", name, config_removed)
             
-            # 删除缓存
+            # 3. 删除缓存
             if name in self._container_info:
                 del self._container_info[name]
+                logger.info("已从缓存中删除: %s", name)
+            else:
+                logger.warning("缓存中未找到: %s", name)
             
+            logger.info("容器 '%s' 删除完成", name)
             return True
             
         except Exception as e:
-            logger.error("删除容器 %s 失败: %s", name, e)
+            logger.exception("删除容器 %s 失败: %s", name, e)
             return False
     
     async def start_container(self, name: str) -> bool:

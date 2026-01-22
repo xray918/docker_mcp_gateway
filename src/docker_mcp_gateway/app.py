@@ -155,6 +155,11 @@ def _register_routes(app: FastAPI) -> None:
     
     # ==================== API 路由 ====================
     
+    @app.get("/api/health")
+    async def health_check():
+        """健康检查端点"""
+        return {"status": "ok", "service": "docker-mcp-gateway"}
+    
     @app.get("/api/status", response_model=StatusResponse)
     async def get_status():
         """获取网关状态"""
@@ -249,10 +254,20 @@ def _register_routes(app: FastAPI) -> None:
         if not _docker_manager:
             raise HTTPException(status_code=503, detail="服务未就绪")
         
-        success = await _docker_manager.remove_container(name)
-        if not success:
+        logger.info("收到删除容器请求: %s", name)
+        
+        # 检查容器是否存在于管理列表中
+        container_info = _docker_manager.get_container_info(name)
+        if not container_info:
+            logger.warning("容器 '%s' 不在管理列表中", name)
             raise HTTPException(status_code=404, detail=f"容器 '{name}' 不存在")
         
+        success = await _docker_manager.remove_container(name)
+        if not success:
+            logger.error("删除容器 '%s' 失败", name)
+            raise HTTPException(status_code=500, detail=f"删除容器 '{name}' 失败")
+        
+        logger.info("容器 '%s' 删除成功", name)
         return {"success": True, "message": f"容器 '{name}' 已删除"}
     
     @app.post("/api/containers/{name}/start")

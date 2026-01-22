@@ -1,11 +1,28 @@
 containers:
   taoke-mcp:
     cpu_limit: null
-    env: {}
+    env:
+      ENV_OVERRIDE: 'false'
+      ENV_SECRET: url:mcp.sinataoke.cn
+      ENV_URL: https://config.sinataoke.cn/api/mcp/secret
     host_port: 8081
-    image: nginx
+    image: liuliang520500/taoke-mcp
     internal_port: 8081
     labels: {}
     memory_limit: null
-    raw_command: docker run -dit --name taoke-mcp -p 9999:8081 nginx
+    raw_command: 'docker run -dit \
+
+      --name taoke-mcp  \
+
+      --restart always \
+
+      -p 8081:8081 \
+
+      -e ENV_URL=https://config.sinataoke.cn/api/mcp/secret \
+
+      -e ENV_SECRET=url:mcp.sinataoke.cn \
+
+      -e ENV_OVERRIDE=false \
+
+      liuliang520500/taoke-mcp'
     restart_policy: always

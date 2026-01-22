@@ -45,14 +45,46 @@ uv sync
 uv run docker-mcp-gateway
 ```
 
+## 服务器部署
+
+### 本地部署（在服务器上执行）
+
+```bash
+./deploy.sh start     # 启动
+./deploy.sh stop      # 停止
+./deploy.sh restart   # 重启
+./deploy.sh status    # 状态
+./deploy.sh deploy    # 更新代码并重启
+./deploy.sh health    # 健康检查
+./deploy.sh logs      # 查看日志
+```
+
+### 远程部署（从本地部署到服务器）
+
+```bash
+# 1. 配置服务器信息
+cp .env.remote.example .env.remote
+# 编辑 .env.remote，设置 REMOTE_HOST 等
+
+# 2. 执行远程部署
+./remote_deploy.sh deploy    # 完整部署
+./remote_deploy.sh status    # 远程状态
+./remote_deploy.sh logs      # 远程日志
+./remote_deploy.sh ssh       # 登录服务器
+```
+
 ## 配置
 
 配置文件: `config/containers.yaml`
 
+环境变量配置: `.env` (参考 `.env.example`)
+
 环境变量:
 - `HOST`: 绑定地址 (默认 0.0.0.0)
-- `PORT`: 监听端口 (默认 8080)
-- `CONFIG_FILE`: 配置文件路径
+- `PORT`: 监听端口 (默认 18082)
+- `CONFIG_DIR`: 配置目录 (默认 ./config)
+- `DATA_DIR`: 数据目录 (默认 ./data)
+- `LOG_LEVEL`: 日志级别 (默认 INFO)
 
 ## API 端点
 
@@ -81,5 +113,11 @@ docker_mcp_gateway/
 │   └── models.py            # 数据模型
 ├── web/                     # 前端静态文件
 ├── config/                  # 配置文件
-└── data/                    # 持久化数据
+├── data/                    # 持久化数据
+├── logs/                    # 日志目录（自动创建）
+├── backups/                 # 配置备份（自动创建）
+├── deploy.sh                # 本地部署脚本
+├── remote_deploy.sh         # 远程部署脚本
+├── .env.example             # 本地环境变量示例
+└── .env.remote.example      # 远程部署配置示例
 ```

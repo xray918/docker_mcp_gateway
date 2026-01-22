@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 docker-mcp-gateway = "docker_mcp_gateway.__main__:main"
+gateway= "docker_mcp_gateway.__main__:main"
 
 [build-system]
 requires = ["hatchling"]

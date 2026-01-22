@@ -6,6 +6,7 @@
 let startTime = null;
 let logRefreshInterval = null;
 let currentLogContainer = null;
+let isOperationInProgress = false;  // 操作进行中标志，防止定时器干扰
 
 // DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -65,11 +66,23 @@ async function fetchStatus() {
 
 /**
  * 获取容器列表
+ * @param {boolean} force - 是否强制刷新（忽略操作锁）
  */
-async function fetchContainers() {
+async function fetchContainers(force = false) {
+    // 如果有操作正在进行且不是强制刷新，跳过（防止定时器干扰）
+    if (isOperationInProgress && !force) {
+        console.log('操作进行中，跳过定时刷新');
+        return;
+    }
+    
     try {
         const response = await fetch('/api/containers');
+        if (!response.ok) {
+            console.error('获取容器列表失败: HTTP', response.status);
+            return;
+        }
         const containers = await response.json();
+        console.log('获取到容器列表:', containers.map(c => `${c.name}(${c.status})`).join(', '));
         renderContainers(containers);
     } catch (error) {
         console.error('获取容器列表失败:', error);
@@ -82,17 +95,24 @@ async function fetchContainers() {
  * 渲染容器列表
  */
 function renderContainers(containers) {
-    const list = document.getElementById('containers-list');
-    const emptyState = document.getElementById('empty-state');
+    console.log('renderContainers 被调用，容器数量:', containers?.length);
     
-    if (!containers || containers.length === 0) {
-        list.innerHTML = '';
-        list.appendChild(emptyState);
-        emptyState.style.display = 'block';
+    const list = document.getElementById('containers-list');
+    if (!list) {
+        console.error('containers-list 元素不存在');
         return;
     }
     
-    emptyState.style.display = 'none';
+    // 空状态处理
+    if (!containers || containers.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <p>暂无容器</p>
+                <p>点击上方"添加容器"按钮开始</p>
+            </div>
+        `;
+        return;
+    }
     
     const html = containers.map(container => {
         const statusClass = getStatusClass(container.status);
@@ -102,6 +122,14 @@ function renderContainers(containers) {
         const portMapping = container.host_port 
             ? `${container.host_port}:${container.internal_port}` 
             : `:${container.internal_port}`;
+        
+        // 根据状态决定显示哪个按钮
+        const isRunning = container.status === 'running';
+        const actionBtn = isRunning 
+            ? `<button class="btn-small btn-stop" onclick="stopContainer('${container.name}', this)">停止</button>`
+            : `<button class="btn-small btn-start" onclick="startContainer('${container.name}', this)">启动</button>`;
+        
+        console.log(`容器 ${container.name} 状态: ${container.status}, 显示按钮: ${isRunning ? '停止' : '启动'}`);
         
         return `
             <div class="container-item" data-name="${container.name}">
@@ -122,10 +150,7 @@ function renderContainers(containers) {
                 <div class="container-actions">
                     <button class="copy-btn" onclick="copyToClipboard('${externalUrl}', this)">复制</button>
                     <button class="btn-small btn-log" onclick="openLogModal('${container.name}')">日志</button>
-                    ${container.status === 'running' 
-                        ? `<button class="btn-small btn-stop" onclick="stopContainer('${container.name}', this)">停止</button>`
-                        : `<button class="btn-small btn-start" onclick="startContainer('${container.name}', this)">启动</button>`
-                    }
+                    ${actionBtn}
                     <button class="btn-small btn-delete" onclick="deleteContainer('${container.name}', this)">删除</button>
                 </div>
             </div>
@@ -133,6 +158,7 @@ function renderContainers(containers) {
     }).join('');
     
     list.innerHTML = html;
+    console.log('DOM 已更新');
 }
 
 /**
@@ -302,6 +328,7 @@ async function handleAddContainer(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = '创建中...';
     errorDiv.textContent = '';
+    isOperationInProgress = true;  // 设置操作锁
     
     try {
         const response = await fetch('/api/containers', {
@@ -317,16 +344,16 @@ async function handleAddContainer(e) {
         const data = await response.json();
         
         if (response.ok) {
-            // 成功
+            console.log('容器创建成功:', data);
+            
+            // 成功 - 关闭模态框
             document.getElementById('add-modal').classList.remove('show');
             document.getElementById('add-form').reset();
             document.getElementById('parse-preview').classList.remove('show');
             
-            // 刷新列表
-            await fetchContainers();
+            // 强制刷新列表
+            await fetchContainers(true);
             await fetchStatus();
-            
-            console.log('容器创建成功:', data);
         } else {
             // 错误
             errorDiv.textContent = data.detail || '创建失败';
@@ -337,6 +364,7 @@ async function handleAddContainer(e) {
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = '创建容器';
+        isOperationInProgress = false;  // 释放操作锁
     }
 }
 
@@ -346,27 +374,40 @@ async function handleAddContainer(e) {
  * 启动容器
  */
 async function startContainer(name, btn) {
-    const originalText = btn.textContent;
     btn.textContent = '启动中...';
     btn.disabled = true;
+    isOperationInProgress = true;  // 设置操作锁
     
     try {
-        const response = await fetch(`/api/containers/${name}/start`, {
+        const encodedName = encodeURIComponent(name);
+        console.log('正在启动容器:', name);
+        
+        const response = await fetch(`/api/containers/${encodedName}/start`, {
             method: 'POST',
         });
         
+        console.log('启动响应状态:', response.status);
+        
         if (response.ok) {
-            await fetchContainers();
+            console.log('容器启动成功，正在刷新列表...');
+            // 强制刷新列表
+            await fetchContainers(true);
+            await fetchStatus();
+            console.log('列表刷新完成');
         } else {
             const data = await response.json();
-            alert(`启动失败: ${data.detail}`);
+            alert(`启动失败: ${data.detail || '未知错误'}`);
+            // 失败时恢复按钮状态
+            btn.textContent = '启动';
+            btn.disabled = false;
         }
     } catch (error) {
         console.error('启动容器失败:', error);
-        alert('网络错误');
-    } finally {
-        btn.textContent = originalText;
+        alert('网络错误，请重试');
+        btn.textContent = '启动';
         btn.disabled = false;
+    } finally {
+        isOperationInProgress = false;  // 释放操作锁
     }
 }
 
@@ -374,27 +415,40 @@ async function startContainer(name, btn) {
  * 停止容器
  */
 async function stopContainer(name, btn) {
-    const originalText = btn.textContent;
     btn.textContent = '停止中...';
     btn.disabled = true;
+    isOperationInProgress = true;  // 设置操作锁
     
     try {
-        const response = await fetch(`/api/containers/${name}/stop`, {
+        const encodedName = encodeURIComponent(name);
+        console.log('正在停止容器:', name);
+        
+        const response = await fetch(`/api/containers/${encodedName}/stop`, {
             method: 'POST',
         });
         
+        console.log('停止响应状态:', response.status);
+        
         if (response.ok) {
-            await fetchContainers();
+            console.log('容器停止成功，正在刷新列表...');
+            // 强制刷新列表
+            await fetchContainers(true);
+            await fetchStatus();
+            console.log('列表刷新完成');
         } else {
             const data = await response.json();
-            alert(`停止失败: ${data.detail}`);
+            alert(`停止失败: ${data.detail || '未知错误'}`);
+            // 失败时恢复按钮状态
+            btn.textContent = '停止';
+            btn.disabled = false;
         }
     } catch (error) {
         console.error('停止容器失败:', error);
-        alert('网络错误');
-    } finally {
-        btn.textContent = originalText;
+        alert('网络错误，请重试');
+        btn.textContent = '停止';
         btn.disabled = false;
+    } finally {
+        isOperationInProgress = false;  // 释放操作锁
     }
 }
 
@@ -406,28 +460,46 @@ async function deleteContainer(name, btn) {
         return;
     }
     
-    const originalText = btn.textContent;
     btn.textContent = '删除中...';
     btn.disabled = true;
+    isOperationInProgress = true;  // 设置操作锁
+    
+    // 保存容器项元素引用，用于视觉反馈
+    const containerItem = btn.closest('.container-item');
     
     try {
-        const response = await fetch(`/api/containers/${name}`, {
+        // URL 编码容器名称，处理特殊字符
+        const encodedName = encodeURIComponent(name);
+        const response = await fetch(`/api/containers/${encodedName}`, {
             method: 'DELETE',
         });
         
         if (response.ok) {
-            await fetchContainers();
+            console.log('容器删除成功:', name);
+            
+            // 视觉反馈
+            if (containerItem) {
+                containerItem.style.opacity = '0.5';
+                containerItem.style.pointerEvents = 'none';
+            }
+            
+            // 强制刷新列表
+            await fetchContainers(true);
             await fetchStatus();
         } else {
             const data = await response.json();
-            alert(`删除失败: ${data.detail}`);
+            console.error('删除失败:', data);
+            alert(`删除失败: ${data.detail || '未知错误'}`);
+            btn.textContent = '删除';
+            btn.disabled = false;
         }
     } catch (error) {
         console.error('删除容器失败:', error);
-        alert('网络错误');
-    } finally {
-        btn.textContent = originalText;
+        alert('网络错误，请重试');
+        btn.textContent = '删除';
         btn.disabled = false;
+    } finally {
+        isOperationInProgress = false;  // 释放操作锁
     }
 }
 
@@ -509,7 +581,8 @@ function closeLogModal() {
  */
 async function fetchLogs(name) {
     try {
-        const response = await fetch(`/api/containers/${name}/logs?tail=200`);
+        const encodedName = encodeURIComponent(name);
+        const response = await fetch(`/api/containers/${encodedName}/logs?tail=200`);
         const data = await response.json();
         
         const logContent = document.getElementById('log-content');
