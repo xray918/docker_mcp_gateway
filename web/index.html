@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker MCP Gateway</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="logo-icon">🐳</span>
+                <h1>Docker MCP Gateway</h1>
+            </div>
+            <div class="controls">
+                <span class="status-badge" id="global-status">检查中...</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- 统计卡片 -->
+            <div class="stats-grid">
+                <div class="card">
+                    <div class="card-icon">⏱️</div>
+                    <div class="card-content">
+                        <h3>运行时间</h3>
+                        <div class="value" id="uptime">-</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📦</div>
+                    <div class="card-content">
+                        <h3>容器总数</h3>
+                        <div class="value" id="total-containers">-</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🟢</div>
+                    <div class="card-content">
+                        <h3>运行中</h3>
+                        <div class="value" id="running-containers">-</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <div class="card-content">
+                        <h3>总请求数</h3>
+                        <div class="value" id="total-requests">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 容器列表 -->
+            <section class="containers-section">
+                <div class="section-header">
+                    <h2>容器管理</h2>
+                    <button id="add-container-btn" class="btn-primary">
+                        <span>➕</span> 添加容器
+                    </button>
+                </div>
+                <div class="containers-list" id="containers-list">
+                    <!-- 容器项目将动态插入 -->
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>暂无容器</p>
+                        <p class="empty-hint">点击"添加容器"按钮开始</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 添加容器模态框 -->
+        <div id="add-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>添加容器</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="add-form">
+                    <div class="form-group">
+                        <label>Docker Run 命令</label>
+                        <div class="help-text">粘贴完整的 docker run 命令，系统会自动解析</div>
+                        <textarea id="docker-command" rows="10" required placeholder='docker run -dit \
+--name taoke-mcp  \
+--restart always \
+-p 8081:8081 \
+-e ENV_URL=https://config.sinataoke.cn/api/mcp/secret \
+-e ENV_SECRET=url:mcp.sinataoke.cn \
+-e ENV_OVERRIDE=false \
+liuliang520500/taoke-mcp'></textarea>
+                        <div id="parse-preview" class="parse-preview"></div>
+                        <div id="form-error" class="error-text"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel">取消</button>
+                        <button type="submit" class="btn-submit">创建容器</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 日志模态框 -->
+        <div id="log-modal" class="modal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3>容器日志 - <span id="log-container-name">-</span></h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="log-controls">
+                    <label>
+                        <input type="checkbox" id="log-auto-refresh" checked>
+                        自动刷新
+                    </label>
+                    <button id="log-refresh-btn" class="btn-small">刷新</button>
+                </div>
+                <div class="log-container" id="log-container">
+                    <pre id="log-content">加载中...</pre>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Docker MCP Gateway v0.1.0</p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+containers:
+  taoke-mcp:
+    cpu_limit: null
+    env: {}
+    host_port: 8081
+    image: nginx
+    internal_port: 8081
+    labels: {}
+    memory_limit: null
+    raw_command: docker run -dit --name taoke-mcp -p 9999:8081 nginx
+    restart_policy: always
